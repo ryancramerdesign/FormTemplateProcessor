@@ -1,0 +1,75 @@
+ProcessWire FormTemplateProcessor module
+
+Overview:
+=========
+
+Module to let you use templates as web contact forms.
+Can send you email and/or save the submission to a page in your site. 
+Intended to be a starting point and proof-of-concept, so you may
+want to take this further. 
+
+For more information:
+http://processwire.com/talk/index.php/topic,75.0.html
+
+Designed for use with ProcessWire 2.0 or 2.1
+http://processwire.com
+
+Installation:
+=============
+
+1. Place FormTemplateProcessor.module in your site/modules/ directory. 
+2. Login to ProcessWire admin and click to Modules. 
+3. Click "Check for new modules".
+4. Click "install" next to the new FormTemplateProcessor module. 
+
+Usage:
+======
+
+1. In admin, create the fields you want to be part of the form.
+2. Create a new template and assign your fields to this template.
+3. Create another template for your contact form page (if you don't already have one).
+4. Use the example below as a starting point for this contact form page: 
+
+$form = $modules->get('FormTemplateProcessor'); 
+$form->template = $templates->get('my_contact_form_template'); // required
+$form->requiredFields = array('fullname', 'email');
+$form->email = 'your@email.com'; // optional, sends form as email
+$form->parent = $page; // optional, saves form as page
+echo $form->render(); // draw form or process submitted form
+
+5. Use CSS to style the fields. See below for a suggested starting point:
+
+	.Inputfields,
+	.Inputfields li {
+		list-style: none;
+		margin: 1em 0;
+		padding: 0;
+	}
+
+	.Inputfields li label {
+		font-weight: bold;
+	}
+
+	.Inputfields li p {
+		margin: 0;
+	}
+
+	.Inputfields li p.description {
+		font-style: italic;
+	}
+
+	.Inputfields textarea,
+	.Inputfields .InputfieldMaxWidth {
+		width: 100%;
+	}
+
+	.Inputfields .InputfieldSubmit label {
+		display: none;
+	}
+
+	.ui-state-error-text {
+		color: red;
+	}
+
+
+

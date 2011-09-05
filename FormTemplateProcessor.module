@@ -1,0 +1,295 @@
+<?php
+
+/**
+ * Module to let you use templates as web contact forms.
+ *
+ * Can send you email and/or save the submission to a page in your site. 
+ *
+ * Usage:
+ *
+ * 1. In admin, create the fields you want to be part of the form.
+ * 2. Create a new template and assign your fields to this template.
+ * 3. Create another template for your contact form page (if you don't already have one).
+ * 4. Use the example below as a starting point for this contact form page: 
+ *
+ * $form = $modules->get('FormTemplateProcessor'); 
+ * $form->template = $templates->get('my_contact_form_template'); // required
+ * $form->requiredFields = array('fullname', 'email');
+ * $form->email = 'your@email.com'; // optional, sends form as email
+ * $form->parent = $page; // optional, saves form as page
+ * echo $form->render(); // draw form or process submitted form
+ *
+ * 5. Use CSS to style the fields. See the bottom of this file for suggestions.
+ *
+ */
+class FormTemplateProcessor extends WireData implements Module {
+
+        /**
+         * Return an array of module information
+         *
+         * @return array
+         *
+         */
+        public static function getModuleInfo() {
+		return array(
+			'title' => 'Form Template Processor', 
+			'version' => 101, 
+			'summary' => 'Lets you use template fields as web contact forms. Can send forms as emails or save as pages.',
+			'singular' => false,
+			'autoload' => false,
+			);
+	}
+
+	/**
+	 * Instance of InputfieldForm that we use to hold our form fields.
+	 *
+	 */
+	protected $form;
+
+	/**
+	 * Instance of Page, that we use to hold our submitted contact info. 
+	 *
+	 */
+	protected $contact; 
+
+	/**
+	 * Initialize a new web contact form
+	 *
+	 * @param Template $template Template object holding the form's fields.
+	 *
+	 */
+	public function init() {
+
+		// create a page for holding our form fields
+		$this->contact = new Page();
+
+		// Template to use for the contact form fields (required).
+		// must be a Template object, it will be assigned to $this->contact.
+		$this->set('template', null);
+
+	 	// Optional E-Mail address that form will get submitted to
+		$this->set('email', '');
+
+		// Array of field names that are required to complete the submission
+		// if not specified, it will use the admin field settings.
+		// I recommend that you make at least one field required, since this 
+		// isn't an admin setting yet.
+		$this->set('requiredFields', array());
+
+	 	// Array of field names that should be skipped when drawing the form
+		$this->set('skipFields', array('title'));
+
+		// Subject of the email that gets sent 
+		$this->set('emailSubject', 'Web Contact Form Submission'); 
+
+		// Optional parent page for the contact.
+		// If ommited, the page will not be saved to the DB.
+		$this->set('parent', null);
+
+
+		// message output upon successful completion of the form
+		$this->set('successMessage', '<h2>Thank you, your submission has been sent.</h2>'); 
+
+		// date format used for the title's of newly created contact pages
+		$this->set('dateFormat', 'F j, Y, g:i a'); 
+
+	}
+
+	/**
+	 * Intercept when some properties are set so that we can us them
+	 *
+	 */
+	public function set($key, $value) {
+		if($key == 'parent' && $value) {
+			if(!$value instanceof Page) throw new WireException('Parent must be a Page object');
+			$this->contact->parent = $value;
+
+		} else if($key == 'template' && $value) {
+			if(!$value instanceof Template) throw new WireException('Template must be a Template object');
+			$this->contact->template = $value;
+		}
+		return parent::set($key, $value);
+	}
+
+	/**
+	 * Build the web contact form and add fields to it
+	 *
+	 */
+	protected function ___buildForm() {
+
+		// create the contact form
+		$form = $this->modules->get("InputfieldForm");
+		$form->method = 'post';
+		$form->action = './';
+
+		// get the collection of inputs that can populate this page's fields
+		$inputfields = $this->contact->getInputfields();
+
+		// make all the fields required and add them to the form
+		foreach($inputfields as $inputfield) {
+			if(in_array($inputfield->name, $this->skipFields)) continue; 
+			if(in_array($inputfield->name, $this->requiredFields)) $inputfield->required = true; 
+			$form->add($inputfield);
+		}
+
+		// the inputfields don't already have a submit button, so we'll add one.
+		$submit = $this->modules->get("InputfieldSubmit");
+
+		// set a random name to the submit button so that this form doesn't process 
+		// any submissions without first receiving a rendered form. This isn't 
+		// necessary, but it may help to reduce automated spam to the form.
+		$submit->name = "submit";
+		$submit->value = 'Submit';
+
+		// add the submit button the the form
+		$form->add($submit);
+
+		return $form;
+	}
+
+	/**
+	 * Send an email with the results of the processed form
+	 *
+	 */
+	protected function ___sendEmail($form) {
+
+		$message = '';
+		$fromEmail = '';
+
+		foreach($this->contact->fields as $field) {
+
+			if(in_array($field->name, $this->skipFields)) continue; 
+
+			$label = $field->label;
+			$value = htmlentities($this->contact->get($field->name));
+
+			$message .= "<h2>$label</h2><p>$value</p>";
+
+			// use the first found FieldtypeEmail as the 'From' email
+			if(!$fromEmail && $field->type instanceof FieldtypeEmail) {
+				$fromEmail = $value;
+			}
+		}
+
+		$message = "<html><head></head><body>$message</body></html>";
+		$headers = "Content-Type: text/html;";
+
+		if($fromEmail) $headers = "From: $fromEmail\n$headers";
+
+		// send the email		
+		mail($this->email, "Web Contact", $message, $headers); 
+	}
+
+	/**
+	 * Create a new page with the results of the processed form
+	 *
+	 */
+	protected function ___savePage($form) {
+
+		if(!$this->contact->parent) return; 
+
+		$this->contact->name = date('y-m-d-H-i-s-u');
+
+		if(in_array('title', $this->skipFields)) {
+			$this->contact->title = date($this->dateFormat);
+		}
+
+		if(ProcessWire::versionMajor == 2 && ProcessWire::versionMinor == 0) {
+			$this->contact->status = Page::statusHidden;
+			$this->contact->removeRole('guest');
+		} else {
+			// PW 2.1 and above
+			$this->contact->status = Page::statusUnpublished; 
+		}
+
+		$this->contact->save();
+	}
+	
+
+	/**
+	 * Render a form or process it's input
+	 *
+	 * @return string Output of the form or success message upon completion.
+	 *
+	 */
+	public function ___render() {
+
+		if(!$this->contact->template) throw new WireException("You must specify a Template");
+
+		$form = $this->buildForm();
+
+		// if the form hasn't been submitted, then just return the rendered form.
+		if(!$this->input->post->submit) return $form->render();
+
+		// variable to hold our output, which we will return
+		$out = ''; 
+	
+		// now we assume the form has been submitted.
+		// tell the form to process input frmo the post vars.
+		$form->processInput($this->input->post);
+
+		// see if any errors occurred
+		if(count($form->getErrors())) {
+			// re-render the form, it will include the error messages
+			$out .= $form->render();	
+
+		} else {
+			// successful form submission, so populate the new page with the new values.
+			foreach($form as $field) {
+				$this->contact->set($field->name, $field->value); 
+			}
+
+			if($this->email) $this->sendEmail($form);
+			if($this->parent) $this->savePage($form);
+
+			$out .= $this->successMessage;
+		
+		}
+
+		return $out;
+	}
+}
+
+
+/**
+ * Suggested styles to get started for styling the fields created by this module:
+ *
+ *
+
+.Inputfields,
+.Inputfields li {
+	list-style: none;
+	margin: 1em 0;
+	padding: 0;
+}
+
+.Inputfields li label {
+	font-weight: bold;
+}
+
+.Inputfields li p {
+	margin: 0;
+}
+
+.Inputfields li p.description {
+	font-style: italic;
+}
+
+.Inputfields textarea,
+.Inputfields .InputfieldMaxWidth {
+	width: 100%;
+}
+
+.Inputfields .InputfieldSubmit label {
+	display: none;
+}
+
+.ui-state-error-text {
+	color: red;
+}
+
+ */
+
+
+
+
