@@ -177,7 +177,7 @@ class FormTemplateProcessor extends WireData implements Module {
 		if($fromEmail) $headers = "From: $fromEmail\n$headers";
 
 		// send the email		
-		mail($this->email, "Web Contact", $message, $headers); 
+		mail($this->email, $this->emailSubject, $message, $headers); 
 	}
 
 	/**
