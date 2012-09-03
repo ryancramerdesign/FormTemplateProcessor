@@ -161,7 +161,7 @@ class FormTemplateProcessor extends WireData implements Module {
 			if(in_array($field->name, $this->skipFields)) continue; 
 
 			$label = $field->label;
-			$value = htmlentities($this->contact->get($field->name));
+			$value = htmlentities($this->contact->get($field->name), ENT_COMPAT, "UTF-8");
 
 			$message .= "<h2>$label</h2><p>$value</p>";
 
@@ -172,7 +172,7 @@ class FormTemplateProcessor extends WireData implements Module {
 		}
 
 		$message = "<html><head></head><body>$message</body></html>";
-		$headers = "Content-Type: text/html;";
+		$headers = "Content-type: text/html; charset=UTF-8" . "\r\n";
 
 		if($fromEmail) $headers = "From: $fromEmail\n$headers";
 
