@@ -139,7 +139,8 @@ class FormTemplateProcessor extends WireData implements Module {
 		// any submissions without first receiving a rendered form. This isn't 
 		// necessary, but it may help to reduce automated spam to the form.
 		$submit->name = "submit";
-		$submit->value = 'Submit';
+		// Enable language support on submit button value
+		$submit->value = $this->_('Submit');
 
 		// add the submit button the the form
 		$form->add($submit);
